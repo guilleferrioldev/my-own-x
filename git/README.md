@@ -1,11 +1,5 @@
 # My own git  
 
-### How to run
-```bash
-cd shell
-go run main.go
-```
-
 #### Git is a content-addressable filesystem. Great. What does that mean? It means that at the core of Git is a simple key-value data store. What this means is that you can insert any kind of content into a Git repository, for which Git will hand you back a unique key you can use later to retrieve that content.
 
 1. Git objects:
@@ -55,6 +49,54 @@ go run main.go
   * Author information and commit message.
 
     This commit object is also saved in .git/objects/ with its own SHA-1. This final SHA-1 is the one used to identify the commit.
+
+### How to run
+```bash
+cd cmd
+go run main.go
+```
+
+### Manual for the commands after running the program
+Initializes a new Git repository in the current directory.
+```bash
+git init
+```
+
+Displays the type of the specified object.
+```bash
+git cat-file -t <object>
+```
+
+
+Displays the contents of the specified object in a human-readable format.
+```bash
+git cat-file -p <object>
+```
+
+Computes the SHA-1 hash of the specified file.
+```bash
+git hash-object <file>
+```
+
+Lists the contents of the specified tree object.
+```bash
+git ls-tree <tree-ish>
+```
+
+Creates a new tree object from the current index file.
+```bash
+git write-tree
+```
+
+Creates a new commit object from the specified tree object. 
+```bash
+git commit-tree <tree-ish>
+```
+
+Exits the program.
+```bash
+exit
+```
 
 
 
