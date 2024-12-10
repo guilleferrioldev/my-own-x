@@ -4,6 +4,10 @@
 
 ### How to run
 ```bash
-cd shell
+cd cmd
 go run main.go
 ```
+
+### How to use it after running
+Write the same command as you would in a terminal
+
