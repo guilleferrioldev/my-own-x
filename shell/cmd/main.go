@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -111,54 +110,6 @@ func parseRawCommand(command string) []string {
 	return args
 }
 
-func cd(args []string) {
-	if len(args) != 1 {
-		fmt.Println("Invalid number of arguements for command cd. Expected 1, Got", len(args))
-		return
-	}
-
-	var targetDir string
-	if args[0] == "~" {
-		homeDir, isSet := os.LookupEnv("HOME")
-		if !isSet {
-			fmt.Println("HOME variable is not set")
-			return
-		}
-		targetDir = homeDir
-	} else {
-		targetDir = args[0]
-	}
-
-	err := os.Chdir(targetDir)
-	if err != nil {
-		fmt.Println("cd:", targetDir+": No such file or directory")
-		return
-	}
-}
-
-func pwd(_ []string) {
-	dirPath, err := os.Getwd()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(dirPath)
-}
-
-func typeCommand(args []string) {
-	if len(args) != 1 {
-		fmt.Println("Invalid number of arguements for command type. Expected 1, Got", len(args))
-		return
-	}
-
-	if _, exists := builtins[args[0]]; exists {
-		fmt.Println(args[0] + " is a shell builtin")
-	} else if path, err := findExecutablePath(args[0]); err == nil {
-		fmt.Println(args[0], "is", path)
-	} else {
-		fmt.Println(args[0] + ": not found")
-	}
-}
-
 func findExecutablePath(target string) (string, error) {
 	pathEnv, isSet := os.LookupEnv("PATH")
 	if !isSet {
@@ -174,22 +125,4 @@ func findExecutablePath(target string) (string, error) {
 	}
 
 	return "", errors.New("executable file not found in PATH")
-}
-
-func echo(args []string) {
-	fmt.Println(strings.Join(args, " "))
-}
-
-func exit(args []string) {
-	if len(args) != 1 {
-		fmt.Println("Invalid number of arguements for command exit. Expected 1, Got", len(args))
-		return
-	}
-
-	exitCode, err := strconv.Atoi(args[0])
-	if err != nil {
-		fmt.Println("Invalid exit code " + args[0])
-	}
-
-	os.Exit(exitCode)
 }
