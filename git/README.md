@@ -53,7 +53,7 @@
 ### How to run
 ```bash
 cd cmd
-go run main.go
+go run .
 ```
 
 ### Manual for the commands after running the program

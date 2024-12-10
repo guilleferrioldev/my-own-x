@@ -5,7 +5,7 @@
 ### How to run
 ```bash
 cd cmd
-go run main.go
+go run .
 ```
 
 ### How to use it after running
