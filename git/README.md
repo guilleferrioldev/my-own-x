@@ -1,5 +1,10 @@
 # My own git  
 
+### How to run
+```bash
+cd shell
+go run main.go
+```
 
 #### Git is a content-addressable filesystem. Great. What does that mean? It means that at the core of Git is a simple key-value data store. What this means is that you can insert any kind of content into a Git repository, for which Git will hand you back a unique key you can use later to retrieve that content.
 

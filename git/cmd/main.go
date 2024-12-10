@@ -19,30 +19,61 @@ import (
 	"time"
 )
 
+const (
+	myGitDir = ".mygit"
+)
+
 func main() {
-	if len(os.Args) < 2 {
-		printUsageAndExit("")
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("Welcome to MyGit!")
+
+	for {
+		fmt.Print("> ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input:", err)
+			break
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "exit" {
+			break
+		}
+
+		args := strings.Fields(input)
+		if len(args) < 1 {
+			fmt.Println("You must specify a command.")
+			continue
+		}
+
+		if args[0] != "git" {
+			fmt.Println("You must specify a valid command.")
+			continue
+		}
+
+		command := args[1]
+		switch command {
+		case "init":
+			gitInit()
+		case "cat-file":
+			gitCatFile(args)
+		case "hash-object":
+			gitHashObject(args)
+		case "ls-tree":
+			gitListTree(args)
+		case "write-tree":
+			gitWriteTree(args)
+		case "commit-tree":
+			gitCommitTree(args)
+		case "clone":
+			gitClone(args)
+		default:
+			fmt.Printf("Comando inválido: %s\n", command)
+		}
 	}
 
-	switch os.Args[1] {
-	case "init":
-		gitInit()
-	case "cat-file":
-		gitCatFile()
-	case "hash-object":
-		gitHashObject()
-	case "ls-tree":
-		gitListTree()
-	case "write-tree":
-		gitWriteTree()
-	case "commit-tree":
-		gitCommitTree()
-	case "clone":
-		gitClone()
-	default:
-		fmt.Printf("invalid command: %s\n", os.Args[1])
-		printUsageAndExit("")
-	}
+	fmt.Println("Leaving...")
 }
 
 func printUsageAndExit(command string) {
@@ -52,7 +83,6 @@ func printUsageAndExit(command string) {
 	} else {
 		fmt.Printf("usage: %s %s", myName, command)
 	}
-	os.Exit(1)
 }
 
 func fatal(msg string, args ...any) {
@@ -61,101 +91,110 @@ func fatal(msg string, args ...any) {
 }
 
 func gitInit() {
-	initialDirectories := []string{".git", ".git/objects", ".git/refs"}
-	for _, directory := range initialDirectories {
-		err := os.Mkdir(directory, 0755)
-		if err != nil && !os.IsExist(err) {
-			fatal("error creating directory %s: %s", directory, err)
-		}
-	}
-	headPath := ".git/HEAD"
-	headContent := "ref: refs/heads/master\n"
-	err := os.WriteFile(headPath, []byte(headContent), 0644)
+	cwd, err := os.Getwd()
 	if err != nil {
-		fatal("error writing to file %s: %s", headPath, err)
+		fatal("Error getting current working directory: %v", err)
 	}
-	cwd, _ := os.Getwd()
-	repository := filepath.Join(cwd, ".git")
-	fmt.Printf("Initialized empty Git repository in %s\n", repository)
+
+	repoPath := filepath.Join(cwd, myGitDir)
+
+	cmd := exec.Command("mkdir", "-p", filepath.Join(repoPath, "objects"), filepath.Join(repoPath, "refs"))
+	cmd.Dir = cwd
+	err = cmd.Run()
+	if err != nil {
+		fatal("Error creating .mygit directories: %v", err)
+	}
+
+	headPath := filepath.Join(repoPath, "HEAD")
+	headContent := []byte("ref: refs/heads/master\n")
+
+	err = os.WriteFile(headPath, headContent, 0644)
+	if err != nil {
+		fatal("Error writing to HEAD file: %v", err)
+	}
+
+	fmt.Printf("Initialized empty Git repository in %s\n", repoPath)
 }
 
-func gitCatFile() {
-	if len(os.Args) < 4 || !(os.Args[2] == "-p" || os.Args[2] == "-t" || os.Args[2] == "-s" || os.Args[2] == "-e") {
-		printUsageAndExit("cat-file (-p | -t | -s | -e) <object>")
+func gitCatFile(args []string) {
+	if len(args) < 4 || !(args[2] == "-p" || args[2] == "-t" || args[2] == "-s" || args[2] == "-e") {
+		printUsageAndExit("cat-file (-p | -t | -s | -e) <object> \n")
+		return
 	}
 
-	objName := os.Args[3]
+	objName := args[3]
 	if len(objName) != 40 {
-		fatal("fatal: Not a valid object name %s\n", objName)
+		fmt.Printf("error: Not a valid object name %s\n", objName)
+		return
 	}
 
-	objDir := filepath.Join(".git", "objects", objName[:2])
+	objDir := filepath.Join(myGitDir, "objects", objName[:2])
 	info, err := os.Stat(objDir)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	if !info.IsDir() {
-		fatal("fatal: not a directory %s\n", objDir)
+		fmt.Printf("error: not a directory %s\n", objDir)
+		return
 	}
 
 	objPath := filepath.Join(objDir, objName[2:])
 	file, err := os.Open(objPath)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	defer file.Close()
 
-	if os.Args[2] == "-e" {
-		os.Exit(0)
-	}
-
 	zipReader, err := zlib.NewReader(file)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 
 	reader := bufio.NewReader(zipReader)
 	objType, _ := reader.ReadString(' ')
 	objType = objType[:len(objType)-1]
 
-	if os.Args[2] == "-t" {
-		fmt.Println(objType)
-		return
-	}
-
 	lengthStr, err := reader.ReadString(0)
 	lengthStr = lengthStr[:len(lengthStr)-1]
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	objSize, _ := strconv.ParseInt(lengthStr, 10, 64)
 
-	if os.Args[2] == "-s" {
+	switch args[2] {
+	case "-p":
+		// TODO: default action "-p" (pretty-print)
+	case "-t":
+		fmt.Println(objType)
+	case "-s":
 		fmt.Println(objSize)
+
+		if objSize == 0 {
+			fmt.Printf("error: object file %s is empty", objPath)
+		}
+	default:
+		io.Copy(os.Stdout, reader)
 		return
 	}
-
-	if objSize == 0 {
-		fatal("error: object file %s is empty", objPath)
-	}
-
-	// default action "-p" (pretty-print)
-
-	io.Copy(os.Stdout, reader)
 }
 
-func gitHashObject() {
-	if len(os.Args) < 3 || (os.Args[2] == "-w" && len(os.Args) < 4) {
-		printUsageAndExit("hash-object [-w] <object>")
+func gitHashObject(args []string) {
+	if len(args) < 3 || (args[2] == "-w" && len(args) < 4) {
+		printUsageAndExit("hash-object [-w] <object> \n")
+		return
 	}
 
 	var writeObject bool
 	var filename string
-	if os.Args[2] == "-w" {
-		filename = os.Args[3]
+	if args[2] == "-w" {
+		filename = args[3]
 		writeObject = true
 	} else {
-		filename = os.Args[2]
+		filename = args[2]
 	}
 
 	fmt.Printf("%x\n", hashFile(writeObject, filename))
@@ -164,23 +203,27 @@ func gitHashObject() {
 func hashFile(writeObject bool, filename string) []byte {
 	file, err := os.Open(filename)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return nil
 	}
 	defer file.Close()
 
 	info, err := file.Stat()
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return nil
 	}
 	if info.IsDir() {
-		fatal("'%s' is a directory", info.Name())
+		fmt.Printf("'%s' is a directory", info.Name())
+		return nil
 	}
 	fileSize := info.Size()
 
 	content := make([]byte, fileSize)
 	_, err = file.Read(content)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return nil
 	}
 
 	return hashObject(writeObject, "blob", fileSize, content)
@@ -200,32 +243,43 @@ func hashObject(writeObject bool, contentType string, contentSize int64, content
 		return hash
 	}
 
-	objDir := filepath.Join(".git", "objects", objName[:2])
+	objDir := filepath.Join(myGitDir, "objects", objName[:2])
 	objPath := filepath.Join(objDir, objName[2:])
 
-	// no need to rewrite if contents match (same hash)
 	if fileExists(objPath) {
 		return hash
 	}
 
 	err := os.MkdirAll(objDir, 0755)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return nil
 	}
 
-	objFile, err := os.OpenFile(objPath, os.O_CREATE, 0644)
+	objFile, err := os.OpenFile(objPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf("Error opening file: %v\n", err)
+		return nil
 	}
 	defer objFile.Close()
+
 	writer := zlib.NewWriter(objFile)
-	writer.Write(payload)
-	writer.Write(content)
-	err = writer.Close()
+	_, err = writer.Write(payload)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf("Error writing payload: %v\n", err)
+		return nil
+	}
+	_, err = writer.Write(content)
+	if err != nil {
+		fmt.Printf("Error writing content: %v\n", err)
+		return nil
 	}
 
+	err = writer.Close()
+	if err != nil {
+		fmt.Printf("Error closing zlib writer: %v\n", err)
+		return nil
+	}
 	return hash
 }
 
@@ -240,49 +294,55 @@ func fileExists(path string) bool {
 	return true
 }
 
-func gitListTree() {
-	if len(os.Args) < 3 || (len(os.Args) == 4 && os.Args[2] != "--name-only" && os.Args[2] != "--object-only" && os.Args[2] != "-l") {
-		printUsageAndExit("ls-tree [(-l | --name-only | --object-only)] <tree_sha>")
+func gitListTree(args []string) {
+	if len(args) < 3 || (len(args) == 4 && args[2] != "--name-only" && args[2] != "--object-only" && args[2] != "-l") {
+		printUsageAndExit("ls-tree [(-l | --name-only | --object-only)] <tree_sha> \n")
+		return
 	}
 
 	var nameOnly, objectOnly, longFormat bool
 	var objName string
-	if os.Args[2] == "--name-only" {
-		objName = os.Args[3]
+	if args[2] == "--name-only" {
+		objName = args[3]
 		nameOnly = true
-	} else if os.Args[2] == "--object-only" {
-		objName = os.Args[3]
+	} else if args[2] == "--object-only" {
+		objName = args[3]
 		objectOnly = true
-	} else if os.Args[2] == "-l" {
-		objName = os.Args[3]
+	} else if args[2] == "-l" {
+		objName = args[3]
 		longFormat = true
 	} else {
-		objName = os.Args[2]
+		objName = args[2]
 	}
 
 	if len(objName) != 40 {
-		fatal("fatal: Not a valid object name %s\n", objName)
+		fmt.Printf("error: Not a valid object name %s\n", objName)
+		return
 	}
 
-	objDir := filepath.Join(".git", "objects", objName[:2])
+	objDir := filepath.Join(myGitDir, "objects", objName[:2])
 	info, err := os.Stat(objDir)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	if !info.IsDir() {
-		fatal("fatal: not a directory %s\n", objDir)
+		fmt.Printf("error: not a directory %s\n", objDir)
+		return
 	}
 
 	objPath := filepath.Join(objDir, objName[2:])
 	file, err := os.Open(objPath)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	defer file.Close()
 
 	zipReader, err := zlib.NewReader(file)
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 
 	reader := bufio.NewReader(zipReader)
@@ -290,18 +350,21 @@ func gitListTree() {
 	objType = objType[:len(objType)-1]
 
 	if objType != "tree" {
-		fatal("expected a 'tree' node, found: %q\n", objType)
+		fmt.Printf("expected a 'tree' node, found: %q\n", objType)
+		return
 	}
 
 	lengthStr, err := reader.ReadString(0)
 	lengthStr = lengthStr[:len(lengthStr)-1]
 	if err != nil {
-		fatal(err.Error())
+		fmt.Printf(err.Error())
+		return
 	}
 	objSize, _ := strconv.ParseInt(lengthStr, 10, 64)
 
 	if objSize == 0 {
-		fatal("error: object file %s is empty", objPath)
+		fmt.Printf("error: object file %s is empty", objPath)
+		return
 	}
 
 	hash := make([]byte, 20)
@@ -311,20 +374,23 @@ func gitListTree() {
 			if err == io.EOF {
 				break
 			}
-			fatal(err.Error())
+			fmt.Printf(err.Error())
+			return
 		}
 		fileMode = "000000" + fileMode[:len(fileMode)-1]
 		fileMode = fileMode[len(fileMode)-6:]
 
 		name, err := reader.ReadString('\000')
 		if err != nil {
-			fatal(err.Error())
+			fmt.Printf(err.Error())
+			return
 		}
 		name = name[:len(name)-1]
 
 		_, err = reader.Read(hash)
 		if err != nil {
-			fatal(err.Error())
+			fmt.Printf(err.Error())
+			return
 		}
 
 		if nameOnly {
@@ -342,7 +408,7 @@ func gitListTree() {
 }
 
 func getObjTypeAndSize(objName string) (objType string, objSize int64) {
-	objPath := filepath.Join(".git", "objects", objName[:2], objName[2:])
+	objPath := filepath.Join(myGitDir, "objects", objName[:2], objName[2:])
 
 	file, err := os.Open(objPath)
 	if err != nil {
@@ -366,9 +432,10 @@ func getObjTypeAndSize(objName string) (objType string, objSize int64) {
 	return
 }
 
-func gitWriteTree() {
-	if len(os.Args) != 2 {
-		printUsageAndExit("write-tree")
+func gitWriteTree(args []string) {
+	if len(args) != 2 {
+		printUsageAndExit("write-tree \n")
+		return
 	}
 
 	cwd, _ := os.Getwd()
@@ -400,7 +467,7 @@ func writeTree(path string) []byte {
 	treeEntries := []*treeEntry{}
 
 	for _, entry := range entries {
-		if entry.Name() == ".git" {
+		if entry.Name() == myGitDir {
 			continue
 		}
 		te := new(treeEntry)
@@ -434,36 +501,37 @@ func writeTree(path string) []byte {
 	return hashObject(true, "tree", int64(len(content)), content)
 }
 
-func gitCommitTree() {
+func gitCommitTree(args []string) {
 	usage := false
-	if len(os.Args) < 3 {
+	if len(args) < 3 {
 		usage = true
 	}
 
 	var treeHash, parentHash, message string
-	for i := 0; !usage && i < len(os.Args); i++ {
-		switch os.Args[i] {
+	for i := 0; !usage && i < len(args); i++ {
+		switch args[i] {
 		case "-p":
-			if parentHash == "" && i+1 < len(os.Args) {
-				parentHash = os.Args[i+1]
+			if parentHash == "" && i+1 < len(args) {
+				parentHash = args[i+1]
 			} else {
 				usage = true
 			}
 			i++ // skip
 		case "-m":
-			if message == "" && i+1 < len(os.Args) {
-				message = os.Args[i+1]
+			if message == "" && i+1 < len(args) {
+				message = args[i+1]
 			} else {
 				usage = true
 			}
 			i++ // skip
 		default:
-			treeHash = os.Args[i]
+			treeHash = args[i]
 		}
 	}
 
 	if usage {
-		printUsageAndExit("commit-tree <tree_sha> [-p <parent_sha>] [-m <message>]")
+		printUsageAndExit("commit-tree <tree_sha> [-p <parent_sha>] [-m <message>] \n")
+		return
 	}
 
 	// make sure tree_sha and parent_sha exists and have the right type
@@ -506,24 +574,26 @@ func getGitConfig(key string) string {
 	return strings.TrimRight(string(output), "\r\n")
 }
 
-func gitClone() {
-	if len(os.Args) < 4 {
-		printUsageAndExit("clone <repo> <dir>")
+func gitClone(args []string) {
+	fmt.Println(args)
+	if len(args) < 4 {
+		printUsageAndExit("clone <repo> <dir> \n")
+		return
 	}
 
-	repoUrl := os.Args[2]
-	directory := os.Args[3]
+	repoUrl := args[2]
+	directory := args[3]
 
 	// TODO: refactor gitInit to accept parameter to new directory
-	// TEMP: make new directory and initialize .git
+	// TEMP: make new directory and initialize .mygit
 	os.Mkdir(directory, 0755)
 	os.Chdir(directory)
 	gitInit()
 
 	packContent, head := fetchGitPack(repoUrl)
 
-	os.MkdirAll(filepath.Join(".git", "refs", "heads"), 0755)
-	os.WriteFile(filepath.Join(".git", "refs", "heads", "master"), []byte(head), 0644)
+	os.MkdirAll(filepath.Join(myGitDir, "refs", "heads"), 0755)
+	os.WriteFile(filepath.Join(myGitDir, "refs", "heads", "master"), []byte(head), 0644)
 
 	unpackObjects(packContent)
 	// "checkout" files to workdir
@@ -862,7 +932,7 @@ func bigEndianBytesToUint(b []byte) uint {
 
 func readObject(hash []byte) (objType string, objSize uint64, content []byte) {
 
-	objPath := filepath.Join(".git", "objects", fmt.Sprintf("%x", hash[:1]), fmt.Sprintf("%x", hash[1:]))
+	objPath := filepath.Join(myGitDir, "objects", fmt.Sprintf("%x", hash[:1]), fmt.Sprintf("%x", hash[1:]))
 	file, err := os.Open(objPath)
 	if err != nil {
 		fatal(err.Error())
