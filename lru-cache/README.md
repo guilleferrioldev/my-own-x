@@ -12,3 +12,8 @@ The LRU algorithm is based on the principle that data that has been used recentl
 
 This way, the cache always contains the most recently used items, maximizing the likelihood that data requests will find the information in the cache rather than having to access a slower data source.
 
+### How to run 
+```bash
+cd cmd
+go run .
+```
